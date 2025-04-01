@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz App</title>
+    <style>
+        body {
+            font-family: 'Roboto', Arial, sans-serif;
+            background-color: #f9f9f9;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1, h2 {
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .question-container {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .question-container p {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .options-container label {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .options-container input {
+            margin-right: 10px;
+        }
+        button {
+            padding: 12px 20px;
+            margin: 10px auto;
+            border: none;
+            background: #007bff;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background 0.3s;
+            display: block;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .progress-bar {
+            height: 10px;
+            background: #e0e0e0;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        .progress-bar div {
+            height: 100%;
+            background: #007bff;
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .hidden {
+            display: none;
+        }
+        .error-message {
+            color: red;
+            text-align: center;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Quiz App</h1>
+        <div id="home">
+            <button onclick="showCreateQuiz()">Create Quiz</button>
+            <button onclick="showAttemptQuiz()">Attempt Quiz</button>
+        </div>
+
+        <div id="createQuiz" class="hidden">
+            <h2>Create a Quiz</h2>
+            <input type="text" id="quizTitle" placeholder="Quiz Title" style="width: 100%; padding: 10px; margin-bottom: 10px;">
+            <div id="questions"></div>
+            <button onclick="addQuestion()">Add Question</button>
+            <button onclick="submitQuiz()">Submit Quiz</button>
+            <p id="quizIdDisplay"></p>
+        </div>
+
+        <div id="attemptQuiz" class="hidden">
+            <h2>Enter Quiz ID</h2>
+            <input type="text" id="quizIdInput" placeholder="Quiz ID" style="width: 100%; padding: 10px; margin-bottom: 10px;">
+            <button onclick="startQuiz()">Start Quiz</button>
+            <p id="errorMessage" class="error-message"></p>
+        </div>
+
+        <div id="quizContainer" class="hidden">
+            <h2 id="quizTitleDisplay"></h2>
+            <div class="progress-bar">
+                <div id="progress"></div>
+            </div>
+            <div id="quizQuestions"></div>
+            <button onclick="submitAnswers()">Submit Answers</button>
+        </div>
+    </div>
+
+    <script>
+        function showCreateQuiz() {
+            document.getElementById("home").classList.add("hidden");
+            document.getElementById("createQuiz").classList.remove("hidden");
+        }
+
+        function showAttemptQuiz() {
+            document.getElementById("home").classList.add("hidden");
+            document.getElementById("attemptQuiz").classList.remove("hidden");
+        }
+
+        function addQuestion() {
+            const questionsDiv = document.getElementById("questions");
+            const questionContainer = document.createElement("div");
+            questionContainer.classList.add("question-container");
+
+            questionContainer.innerHTML = `
+                <input type="text" class="question-text" placeholder="Question" style="width: 100%; padding: 10px; margin-bottom: 10px;">
+                <select class="question-type" onchange="updateOptions(this)" style="width: 100%; padding: 10px; margin-bottom: 10px;">
+                    <option value="single">Single Choice</option>
+                    <option value="multi">Multiple Choice</option>
+                    <option value="oneword">One Word Answer</option>
+                </select>
+                <div class="options-container"></div>
+                <input type="text" class="answer" placeholder="Answer (comma-separated for multi)" style="width: 100%; padding: 10px; margin-top: 10px;">
+            `;
+
+            questionsDiv.appendChild(questionContainer);
+            updateOptions(questionContainer.querySelector(".question-type"));
+        }
+
+        function updateOptions(selectElement) {
+            const container = selectElement.parentElement.querySelector(".options-container");
+            container.innerHTML = "";
+            if (selectElement.value === "single" || selectElement.value === "multi") {
+                for (let i = 0; i < 4; i++) {
+                    const input = document.createElement("input");
+                    input.type = "text";
+                    input.classList.add("option-text");
+                    input.placeholder = `Option ${i + 1}`;
+                    input.style = "width: 100%; padding: 10px; margin-bottom: 10px;";
+                    container.appendChild(input);
+                }
+            }
+        }
+
+        function submitQuiz() {
+    const title = document.getElementById("quizTitle").value;
+    const questionElements = document.querySelectorAll(".question-text");
+    const typeElements = document.querySelectorAll(".question-type");
+    const answerElements = document.querySelectorAll(".answer");
+
+    let questions = [];
+    let isValid = true;
+
+    document.querySelectorAll(".question-container").forEach((container, i) => {
+        let options = [];
+        container.querySelectorAll(".option-text").forEach(option => {
+            options.push(option.value);
+        });
+
+        const answer = answerElements[i].value;
+        const answerIndices = answer.split(',').map(a => a.trim()); // Split and trim answers
+
+        // Validate that each answer is a valid option index
+        answerIndices.forEach(index => {
+            if (isNaN(index) || index < 0 || index >= options.length) {
+                alert(`Invalid answer for question ${i + 1}. Answers must be option numbers (0-${options.length - 1}).`);
+                isValid = false;
+            }
+        });
+
+        questions.push({
+            question: questionElements[i].value,
+            type: typeElements[i].value,
+            options: options,
+            answer: answer
+        });
+    });
+
+    if (!isValid) return; // Stop submission if validation fails
+
+    fetch("http://127.0.0.1:5000/create-quiz", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, questions })
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById("quizIdDisplay").innerText = "Quiz ID: " + data.quiz_id;
+        alert("Quiz created successfully! Your Quiz ID: " + data.quiz_id);
+        window.location.reload();
+    })
+    .catch(error => alert("Error creating quiz"));
+}
+
+        function startQuiz() {
+            const quizId = document.getElementById("quizIdInput").value;
+            const errorMessage = document.getElementById("errorMessage");
+
+            if (!quizId) {
+                errorMessage.innerText = "Please enter a Quiz ID.";
+                return;
+            }
+
+            fetch(`http://127.0.0.1:5000/get-quiz/${quizId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error("Quiz not found");
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    document.getElementById("quizTitleDisplay").innerText = data.title;
+                    const quizQuestionsContainer = document.getElementById("quizQuestions");
+                    quizQuestionsContainer.innerHTML = "";
+
+                    data.questions.forEach((question, index) => {
+                        const questionDiv = document.createElement("div");
+                        questionDiv.classList.add("question-container");
+
+                        let questionHTML = `<p>${index + 1}. ${question.question}</p>`;
+
+                        if (question.type === 'single' || question.type === 'multi') {
+                            question.options.forEach((option, i) => {
+                                questionHTML += `
+                                    <label>
+                                        <input type="${question.type === 'multi' ? 'checkbox' : 'radio'}" name="question-${index}" value="${i}">
+                                        ${option}
+                                    </label>`;
+                            });
+                        } else if (question.type === 'oneword') {
+                            questionHTML += `<input type="text" id="answer-${index}" placeholder="Your answer" style="width: 100%; padding: 10px;">`;
+                        }
+
+                        questionDiv.innerHTML = questionHTML;
+                        quizQuestionsContainer.appendChild(questionDiv);
+                    });
+
+                    document.getElementById("attemptQuiz").classList.add("hidden");
+                    document.getElementById("quizContainer").classList.remove("hidden");
+                })
+                .catch(error => {
+                    errorMessage.innerText = error.message;
+                });
+        }
+
+        function submitAnswers() {
+    const quizId = document.getElementById("quizIdInput").value;
+    const answers = {};
+    const radioButtons = document.querySelectorAll('[type="radio"]:checked');
+    const checkboxes = document.querySelectorAll('[type="checkbox"]:checked');
+    const textInputs = document.querySelectorAll('[type="text"]');
+
+    // Collect answers for single and multiple choice questions
+    radioButtons.forEach((radio) => {
+        const questionIndex = radio.name.split('-')[1];
+        answers[questionIndex] = [radio.value]; // Store as an array for consistency
+    });
+
+    checkboxes.forEach((checkbox) => {
+        const questionIndex = checkbox.name.split('-')[1];
+        if (!answers[questionIndex]) {
+            answers[questionIndex] = [];
+        }
+        answers[questionIndex].push(checkbox.value);
+    });
+
+    // Collect answers for one-word questions
+    textInputs.forEach((input, index) => {
+        if (input.id.startsWith("answer-")) {
+            const questionIndex = input.id.split('-')[1];
+            answers[questionIndex] = input.value.trim().toLowerCase(); // Normalize case
+        }
+    });
+
+    // Send answers to the backend for evaluation
+    fetch(`http://127.0.0.1:5000/submit-quiz/${quizId}`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ answers: answers })
+    })
+    .then(response => response.json())
+    .then(data => {
+        let score = 0;
+
+        // Evaluate answers
+        data.questions.forEach((question, index) => {
+            const correctAnswer = question.answer;
+            const userAnswer = answers[index];
+
+            if (question.type === "oneword") {
+                // One Word Answer: Compare ignoring case
+                if (userAnswer === correctAnswer.toLowerCase()) {
+                    score += 1;
+                }
+            } else if (question.type === "multi") {
+                // Multiple Choice: Check if arrays match
+                const correctAnswers = correctAnswer.split(',').map(a => a.trim());
+                if (JSON.stringify(correctAnswers.sort()) === JSON.stringify(userAnswer.sort())) {
+                    score += 1;
+                }
+            } else if (question.type === "single") {
+                // Single Choice: Check if the selected option matches
+                if (userAnswer[0] === correctAnswer) {
+                    score += 1;
+                }
+            }
+        });
+
+        alert(`Your score: ${score} / ${data.questions.length}`);
+    })
+    .catch(error => alert("Error submitting answers"));
+}
+    </script>
+</body>
+</html>
