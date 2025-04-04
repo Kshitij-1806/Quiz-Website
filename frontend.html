@@ -164,54 +164,56 @@
         }
 
         function submitQuiz() {
-    const title = document.getElementById("quizTitle").value;
-    const questionElements = document.querySelectorAll(".question-text");
-    const typeElements = document.querySelectorAll(".question-type");
-    const answerElements = document.querySelectorAll(".answer");
+            const title = document.getElementById("quizTitle").value;
+            const questionElements = document.querySelectorAll(".question-text");
+            const typeElements = document.querySelectorAll(".question-type");
+            const answerElements = document.querySelectorAll(".answer");
 
-    let questions = [];
-    let isValid = true;
+            let questions = [];
+            let isValid = true;
 
-    document.querySelectorAll(".question-container").forEach((container, i) => {
-        let options = [];
-        container.querySelectorAll(".option-text").forEach(option => {
-            options.push(option.value);
-        });
+            document.querySelectorAll(".question-container").forEach((container, i) => {
+                let options = [];
+                container.querySelectorAll(".option-text").forEach(option => {
+                    options.push(option.value);
+                });
 
-        const answer = answerElements[i].value;
-        const answerIndices = answer.split(',').map(a => a.trim()); // Split and trim answers
+                const answer = answerElements[i].value.trim();
+                const type = typeElements[i].value;
 
-        // Validate that each answer is a valid option index
-        answerIndices.forEach(index => {
-            if (isNaN(index) || index < 0 || index >= options.length) {
-                alert(`Invalid answer for question ${i + 1}. Answers must be option numbers (0-${options.length - 1}).`);
-                isValid = false;
-            }
-        });
+                if (type === "single" || type === "multi") {
+                    const answerIndices = answer.split(',').map(a => a.trim());
+                    answerIndices.forEach(index => {
+                        if (isNaN(index) || index < 0 || index >= options.length) {
+                            alert(`Invalid answer for question ${i + 1}. Answers must be option numbers (0-${options.length - 1}).`);
+                            isValid = false;
+                        }
+                    });
+                }
 
-        questions.push({
-            question: questionElements[i].value,
-            type: typeElements[i].value,
-            options: options,
-            answer: answer
-        });
-    });
+                questions.push({
+                    question: questionElements[i].value,
+                    type: type,
+                    options: options,
+                    answer: type === "oneword" ? answer.toLowerCase() : answer
+                });
+            });
 
-    if (!isValid) return; // Stop submission if validation fails
+            if (!isValid) return;
 
-    fetch("http://127.0.0.1:5000/create-quiz", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, questions })
-    })
-    .then(response => response.json())
-    .then(data => {
-        document.getElementById("quizIdDisplay").innerText = "Quiz ID: " + data.quiz_id;
-        alert("Quiz created successfully! Your Quiz ID: " + data.quiz_id);
-        window.location.reload();
-    })
-    .catch(error => alert("Error creating quiz"));
-}
+            fetch("http://127.0.0.1:5000/create-quiz", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ title, questions })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById("quizIdDisplay").innerText = "Quiz ID: " + data.quiz_id;
+                alert("Quiz created successfully! Your Quiz ID: " + data.quiz_id);
+                window.location.reload();
+            })
+            .catch(error => alert("Error creating quiz"));
+        }
 
         function startQuiz() {
             const quizId = document.getElementById("quizIdInput").value;
@@ -265,74 +267,53 @@
         }
 
         function submitAnswers() {
-    const quizId = document.getElementById("quizIdInput").value;
-    const answers = {};
-    const radioButtons = document.querySelectorAll('[type="radio"]:checked');
-    const checkboxes = document.querySelectorAll('[type="checkbox"]:checked');
-    const textInputs = document.querySelectorAll('[type="text"]');
+            const quizId = document.getElementById("quizIdInput").value;
+            const answers = {};
+            const radioButtons = document.querySelectorAll('[type="radio"]:checked');
+            const checkboxes = document.querySelectorAll('[type="checkbox"]:checked');
+            const textInputs = document.querySelectorAll('[type="text"]');
 
-    // Collect answers for single and multiple choice questions
-    radioButtons.forEach((radio) => {
-        const questionIndex = radio.name.split('-')[1];
-        answers[questionIndex] = [radio.value]; // Store as an array for consistency
-    });
+            radioButtons.forEach((radio) => {
+                const questionIndex = radio.name.split('-')[1];
+                answers[questionIndex] = [radio.value];
+            });
 
-    checkboxes.forEach((checkbox) => {
-        const questionIndex = checkbox.name.split('-')[1];
-        if (!answers[questionIndex]) {
-            answers[questionIndex] = [];
+            checkboxes.forEach((checkbox) => {
+                const questionIndex = checkbox.name.split('-')[1];
+                if (!answers[questionIndex]) {
+                    answers[questionIndex] = [];
+                }
+                answers[questionIndex].push(checkbox.value);
+            });
+
+            textInputs.forEach((input, index) => {
+                if (input.id.startsWith("answer-")) {
+                    const questionIndex = input.id.split('-')[1];
+                    answers[questionIndex] = input.value.trim().toLowerCase();
+                }
+            });
+
+            fetch(`http://127.0.0.1:5000/submit-quiz/${quizId}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ answers: answers })
+            })
+            .then(response => response.json())
+            .then(data => {
+                let score = 0;
+
+                data.results.forEach((result) => {
+                    if (result.is_correct) {
+                        score += 1;
+                    }
+                });
+
+                alert(`Your score: ${score} / ${data.total}`);
+            })
+            .catch(error => alert("Error submitting answers"));
         }
-        answers[questionIndex].push(checkbox.value);
-    });
-
-    // Collect answers for one-word questions
-    textInputs.forEach((input, index) => {
-        if (input.id.startsWith("answer-")) {
-            const questionIndex = input.id.split('-')[1];
-            answers[questionIndex] = input.value.trim().toLowerCase(); // Normalize case
-        }
-    });
-
-    // Send answers to the backend for evaluation
-    fetch(`http://127.0.0.1:5000/submit-quiz/${quizId}`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ answers: answers })
-    })
-    .then(response => response.json())
-    .then(data => {
-        let score = 0;
-
-        // Evaluate answers
-        data.questions.forEach((question, index) => {
-            const correctAnswer = question.answer;
-            const userAnswer = answers[index];
-
-            if (question.type === "oneword") {
-                // One Word Answer: Compare ignoring case
-                if (userAnswer === correctAnswer.toLowerCase()) {
-                    score += 1;
-                }
-            } else if (question.type === "multi") {
-                // Multiple Choice: Check if arrays match
-                const correctAnswers = correctAnswer.split(',').map(a => a.trim());
-                if (JSON.stringify(correctAnswers.sort()) === JSON.stringify(userAnswer.sort())) {
-                    score += 1;
-                }
-            } else if (question.type === "single") {
-                // Single Choice: Check if the selected option matches
-                if (userAnswer[0] === correctAnswer) {
-                    score += 1;
-                }
-            }
-        });
-
-        alert(`Your score: ${score} / ${data.questions.length}`);
-    })
-    .catch(error => alert("Error submitting answers"));
-}
     </script>
 </body>
 </html>
